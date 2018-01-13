@@ -86,7 +86,10 @@ class Board2048Env(gym.Env):
             # Move left board unchanged.
             return self.board, -0.1, False, None
         self.board = new_board
-        if np.count_nonzero(self.board) > 0:
+        if np.isin(2048, self.board):
+            reward = 1
+            done = True
+        elif np.count_nonzero(self.board) > 0:
             self._generate_random_tile()
             # Compute reward.
             all_merged_tiles = np.array(all_merged_tiles)
@@ -126,6 +129,9 @@ class Board2048Env(gym.Env):
             repr_str += row_str + '\n'
             repr_str += row_border + '\n'
         return repr_str
+
+    def __str__(self):
+        return self.__repr__()
 
     def _generate_random_tile(self):
         new_val = 2 if np.random.rand() < 0.9 else 4
