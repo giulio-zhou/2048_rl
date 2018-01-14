@@ -25,7 +25,7 @@ class SimplePolicyGradientAgent(object):
     def __init__(self):
         # Interpret board as 4x4 grid of one-hot encoded vectors
         # where having value e_i = 2^i (for all i >= 1).
-        self.inputs = tf.placeholder('int32', (None, 4, 4, 16))
+        self.inputs = tf.placeholder('float32', (None, 4, 4, 16))
         self.flatten_inputs = tf.layers.flatten(self.inputs)
         self.hidden1 = tf.layers.dense(
             inputs=self.flatten_inputs, units=100, activation=tf.nn.relu)
@@ -47,6 +47,9 @@ class SimplePolicyGradientAgent(object):
         self.discount = 0.99
         self.batch_size = 32
         self.max_trajectory_steps = 1000
+        # Useful state variables.
+        self.moving_baseline = None
+        self.baseline_alpha = 0.8
         # Init session.
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
@@ -91,7 +94,9 @@ class SimplePolicyGradientAgent(object):
         reward_sequences = map(lambda x: x[2], trajectories)
         cumulative_rewards = \
             map(lambda x: self._compute_discounted_rewards(x), reward_sequences)
-        baseline_rewards = cumulative_rewards - np.mean(cumulative_rewards)
+        if self.moving_baseline is None:
+            self.moving_baseline = np.mean(cumulative_rewards)
+        baseline_rewards = cumulative_rewards - self.moving_baseline
         rewards_replicated = [[reward] * len(action_sequences[i]) \
                                  for i, reward in enumerate(baseline_rewards)]
         actions_one_hot = \
@@ -112,6 +117,10 @@ class SimplePolicyGradientAgent(object):
             self.reward_inputs: rewards_replicated,
         }
         self.sess.run(self.optimizer_op, update_feed_dict)
+        # (4) Update state variables.
+        self.moving_baseline = \
+            self.baseline_alpha * self.moving_baseline + \
+            (1 - self.baseline_alpha) * np.mean(cumulative_rewards)
 
     def _sample_trajectory(self, env, num_steps):
         obs = env.reset()
