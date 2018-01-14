@@ -84,7 +84,7 @@ class Board2048Env(gym.Env):
         new_board = reverse_fn(np.array(new_rows))
         if np.array_equal(new_board, self.board):
             # Move left board unchanged.
-            return self.board, -0.1, False, None
+            return self.board, 0, False, None
         self.board = new_board
         if np.isin(2048, self.board):
             reward = 1
@@ -103,6 +103,7 @@ class Board2048Env(gym.Env):
 
     def _reset(self):
         self.__init__()
+        return self.board
 
     def _render(self, mode='human', close=False):
         if close:
