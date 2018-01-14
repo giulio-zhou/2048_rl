@@ -50,6 +50,30 @@ def merge_tiles_in_row(row_vals):
     new_row_vals[:len(shifted_row_vals)] = shifted_row_vals
     return new_row_vals, merged_tiles
 
+def execute_action(start_board, action):
+    if action == 'up':
+        board = np.rot90(start_board, k=1)
+        reverse_fn = lambda x: np.rot90(x, k=-1)
+    elif action == 'down':
+        board = np.rot90(start_board, k=-1)
+        reverse_fn = lambda x: np.rot90(x, k=1)
+    elif action == 'left':
+        board = start_board
+        reverse_fn = lambda x: x
+    elif action == 'right':
+        board = np.fliplr(start_board)
+        reverse_fn = lambda x: np.fliplr(x)
+    else:
+        raise Exception("Invalid action \"%s\"" % action)
+    new_rows = []
+    all_merged_tiles = []
+    for row in board:
+        new_row, merged_tiles = merge_tiles_in_row(row)
+        new_rows.append(new_row)
+        all_merged_tiles += merged_tiles
+    new_board = reverse_fn(np.array(new_rows))
+    return new_board, new_rows, all_merged_tiles
+
 class Board2048Env(gym.Env):
     metadata = {'render.modes': ['human']}
     def __init__(self):
@@ -58,30 +82,11 @@ class Board2048Env(gym.Env):
         self.discount = 0.95
         # The reward for new appearances of tiles is given by
         #   (tile_value / 2048)^self.reward_scaling
-        self.reward_scaling = 2.5
+        self.reward_scaling = 1.25
 
     def _step(self, action):
-        if action == 'up':
-            board = np.rot90(self.board, k=1)
-            reverse_fn = lambda x: np.rot90(x, k=-1)
-        elif action == 'down':
-            board = np.rot90(self.board, k=-1)
-            reverse_fn = lambda x: np.rot90(x, k=1)
-        elif action == 'left':
-            board = self.board
-            reverse_fn = lambda x: x
-        elif action == 'right':
-            board = np.fliplr(self.board)
-            reverse_fn = lambda x: np.fliplr(x)
-        else:
-            raise Exception("Invalid action \"%s\"" % action)
-        new_rows = []
-        all_merged_tiles = []
-        for row in board:
-            new_row, merged_tiles = merge_tiles_in_row(row)
-            new_rows.append(new_row)
-            all_merged_tiles += merged_tiles
-        new_board = reverse_fn(np.array(new_rows))
+        new_board, new_rows, all_merged_tiles = \
+            execute_action(self.board, action)
         if np.array_equal(new_board, self.board):
             # Move left board unchanged.
             return self.board, 0, False, None
@@ -89,14 +94,14 @@ class Board2048Env(gym.Env):
         if np.isin(2048, self.board):
             reward = 1
             done = True
-        elif np.count_nonzero(self.board) > 0:
+        else:
             self._generate_random_tile()
             # Compute reward.
             all_merged_tiles = np.array(all_merged_tiles)
             reward = np.power(all_merged_tiles / 2048., self.reward_scaling)
             reward = np.sum(reward)
             done = False
-        else:
+        if self._check_lose_condition():
             reward = -1
             done = True
         return self.board, reward, done, None
@@ -139,3 +144,22 @@ class Board2048Env(gym.Env):
         ys, xs = np.where(self.board == 0)
         random_idx = np.random.randint(0, len(xs))
         self.board[ys[random_idx], xs[random_idx]] = new_val
+
+    def _check_lose_condition(self):
+        if np.count_nonzero(self.board == 0) == 0:
+            num_matching_neighbors = 0
+            # Above neighbors.
+            shifted_grid = self.board - np.roll(self.board, 1, axis=0)
+            shifted_grid = shifted_grid[1:] # exclude top row
+            # Below neighbors.
+            shifted_grid = self.board - np.roll(self.board, -1, axis=0)
+            shifted_grid = shifted_grid[:-1] # exclude bottom row
+            # Left neighbors.
+            shifted_grid = self.board - np.roll(self.board, 1, axis=1)
+            shifted_grid = shifted_grid[:, 1:] # exclude left column 
+            # Right neighbors.
+            shifted_grid = self.board - np.roll(self.board, -1, axis=1)
+            shifted_grid = shifted_grid[:, :-1] # exclude right column 
+            return num_matching_neighbors == 0
+        return False
+
