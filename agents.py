@@ -25,7 +25,7 @@ class SimplePolicyGradientAgent(object):
     def __init__(self):
         # Interpret board as 4x4 grid of one-hot encoded vectors
         # where having value e_i = 2^i (for all i >= 1).
-        self.inputs = tf.placeholder('float32', (None, 4, 4, 16))
+        self.inputs = tf.placeholder('float32', (None, 16, 4, 4))
         self.flatten_inputs = tf.layers.flatten(self.inputs)
         self.hidden1 = tf.layers.dense(
             inputs=self.flatten_inputs, units=100, activation=tf.nn.relu)
@@ -57,7 +57,7 @@ class SimplePolicyGradientAgent(object):
     def act(self, observation):
         # Observation is a 4x4 numpy array of floats.
         inputs = self._board_one_hot_vectors(observation)
-        inputs = inputs.reshape(1, 4, 4, 16)
+        inputs = inputs.reshape(1, 16, 4, 4)
         action_probs = self.sess.run(self.outputs, {self.inputs: inputs})[0]
         # Account for rules of game by gradually removing invalid options.
         current_action_probs = action_probs
@@ -151,7 +151,7 @@ class SimplePolicyGradientAgent(object):
         return one_hot_actions
 
     def _board_one_hot_vectors(self, board):
-        one_hot_board = np.zeros((4, 4, 16), dtype=np.int32)
+        one_hot_board = np.zeros((16, 4, 4), dtype=np.int32)
         for i in range(board.shape[0]):
             for j in range(board.shape[1]):
                 piece_vector = np.zeros(16)
@@ -160,14 +160,14 @@ class SimplePolicyGradientAgent(object):
                     piece_vector[0] = 1
                 else:
                     piece_vector[int(np.log2(board_val))] = 1
-                one_hot_board[i, j] = piece_vector
+                one_hot_board[:, i, j] = piece_vector
         return one_hot_board
 
 if __name__ == '__main__':
     game = gym.make('2048-v0')
     # run_random_agent(game)
     agent = SimplePolicyGradientAgent()
-    for i in range(100):
+    for i in range(200):
         print(i)
         agent.learn(game)
     run_policy_gradient_agent(game, agent)
