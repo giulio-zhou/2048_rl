@@ -20,19 +20,39 @@ def run_policy_gradient_agent(game, agent):
         board, reward, close, _ = game.step(action)
         print(game)
         time.sleep(0.05)
+        if close:
+            break
+
+# Various architecture for the policy network.
+def multilayer_perceptron_policy_net(self):
+    self.flatten_inputs = tf.layers.flatten(self.inputs)
+    self.hidden1 = tf.layers.dense(
+        inputs=self.flatten_inputs, units=100, activation=tf.nn.relu)
+    self.hidden2 = tf.layers.dense(
+        inputs=self.hidden1, units=20, activation=tf.nn.relu)
+    self.outputs = tf.layers.dense(
+        inputs=self.hidden2, units=4, activation=tf.nn.softmax)
+
+def convolutional_policy_net(self):
+    self.conv1 = tf.layers.conv2d(
+        self.inputs, 32, (2, 2), (1, 1), 'valid', activation=tf.nn.relu)
+    self.conv2 = tf.layers.conv2d(
+        self.conv1, 64, (2, 2), (1, 1), 'valid', activation=tf.nn.relu)
+    self.conv3 = tf.layers.conv2d(
+        self.conv2, 128, (2, 2), (1, 1), 'valid', activation=tf.nn.relu)
+    self.flattened_conv3 = tf.layers.flatten(self.conv3)
+    self.fc = tf.layers.dense(
+        inputs = self.flattened_conv3, units=50, activation=tf.nn.relu)
+    self.outputs = tf.layers.dense(
+        inputs = self.fc, units=4, activation=tf.nn.softmax)
 
 class SimplePolicyGradientAgent(object):
     def __init__(self):
         # Interpret board as 4x4 grid of one-hot encoded vectors
         # where having value e_i = 2^i (for all i >= 1).
         self.inputs = tf.placeholder('float32', (None, 16, 4, 4))
-        self.flatten_inputs = tf.layers.flatten(self.inputs)
-        self.hidden1 = tf.layers.dense(
-            inputs=self.flatten_inputs, units=100, activation=tf.nn.relu)
-        self.hidden2 = tf.layers.dense(
-            inputs=self.hidden1, units=20, activation=tf.nn.relu)
-        self.outputs = tf.layers.dense(
-            inputs=self.hidden2, units=4, activation=tf.nn.softmax)
+        # multilayer_perceptron_policy_net(self)
+        convolutional_policy_net(self)
         self.action_space = ['up', 'down', 'left', 'right']
         # Loss term.
         self.reward_inputs = tf.placeholder('float32', (None,))
@@ -99,6 +119,8 @@ class SimplePolicyGradientAgent(object):
         baseline_rewards = cumulative_rewards - self.moving_baseline
         rewards_replicated = [[reward] * len(action_sequences[i]) \
                                  for i, reward in enumerate(baseline_rewards)]
+        # rewards_replicated = \
+        #     map(lambda x: self._compute_remaining_discounted_rewards(x), reward_sequences)
         actions_one_hot = \
             map(lambda x: self._action_one_hot_vectors(x), action_sequences)
         actions_one_hot = reduce(lambda x, y: x + y, actions_one_hot)
@@ -143,6 +165,14 @@ class SimplePolicyGradientAgent(object):
             reward_sum += (self.discount**i) * reward
         return reward_sum
 
+    def _compute_remaining_discounted_rewards(self, rewards):
+        reward_sum = 0.
+        remaining_rewards = []
+        for i in range(len(rewards) - 1, -1, -1):
+            reward_sum += (self.discount**i) * rewards[i]
+            remaining_rewards.insert(0, reward_sum)
+        return remaining_rewards
+
     def _action_one_hot_vectors(self, action_sequence):
         one_hot_mat = np.diag(np.ones(len(self.action_space)))
         one_hot_actions = []
@@ -170,4 +200,5 @@ if __name__ == '__main__':
     for i in range(200):
         print(i)
         agent.learn(game)
-    run_policy_gradient_agent(game, agent)
+    for i in range(200):
+        run_policy_gradient_agent(game, agent)
